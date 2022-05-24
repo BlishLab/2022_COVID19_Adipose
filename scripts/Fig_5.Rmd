@@ -1,5 +1,5 @@
 ---
-title: "Figure 5 Code"
+title: "Figure 5 Script"
 output: html_document
 ---
 
@@ -169,7 +169,7 @@ fig_5Ab
 # Figure 5B
 ```{r fig_5B}
 Mock_macrophage_srt = subset(macrophage_srt, subset = infection == "Mock")
-macrophage_response_mock = FindMarkers(Mock_macrophage_srt, test.use="MAST", latent.vars = 'donor', ident.1 = "C2 - IL1B-CCL3-Macrophages", ident.2 = "C12 - LYZ-S100A8-Macrophages",group.by = 'cellType')
+macrophage_response_mock = FindMarkers(Mock_macrophage_srt, test.use="MAST", latent.vars = 'donor', ident.1 = "C2 - IL1B-CCL3-Macrophages", ident.2 = "C12 - LYZ-S100A8-Macrophages", group.by = 'cellType')
 macrophage_response_mock$gene = rownames(macrophage_response_mock)
 macrophage_response_mock$gene_dir = ifelse(macrophage_response_mock$avg_log2FC > 0, paste0(macrophage_response_mock$gene,"_","up"),paste0(macrophage_response_mock$gene,"_","down"))
 
