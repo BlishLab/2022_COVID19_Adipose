@@ -156,14 +156,14 @@ proportion3$Infection_Status = factor(proportion3$Infection_Status, levels = c("
 proportion3$cellType_v1 = paste0("C", proportion3$cellType_v1)
 fig_5Aa = ggplot(proportion3, aes(x = cell, y = percent, fill = Infection_Status)) + geom_col(position = "fill") + scale_fill_manual(values = c("Bystander" = "purple", "Mock" = "black","SARS-CoV-2+" = "red3")) + facet_wrap(~cellType_v1) + theme_classic() + coord_flip() 
 fig_5Aa = fig_5Aa + theme_void() + theme(legend.position="none")
-# ggsave(fig_5Ab, filename = paste0(folderPath,"figure2/","new_mac_1a",".pdf"),width = 4, height = .25)
+# ggsave(fig_5Ab, filename = paste0(figpath,""fig_5Aa",".pdf"),width = 4, height = .25)
 fig_5Aa
 
 ## Featureplot
 fig_5Ab = DimPlot(macrophage_srt_sub, group.by = "Infection_Status", cols = c("Bystander" = "purple", "Mock" = "black","SARS-CoV-2+" = "red3"), shuffle = TRUE) + ggtitle("Infection Status") + theme(legend.position = "none", plot.title = element_text(size = 25, face = "bold"))
 fig_5Ab
 
-# ggsave(fig_5Ab, filename = paste0(folderPath,"figure2/","new_mac_1a",".pdf"),width = 9, height = 7)
+# ggsave(fig_5Ab, filename = paste0(figpath,"fig_5Ab",".pdf"),width = 9, height = 7)
 ```
 
 # Figure 5B
