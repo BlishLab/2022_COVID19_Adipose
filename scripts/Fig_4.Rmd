@@ -1,0 +1,261 @@
+---
+title: "Figure 4 Script"
+output: html_document
+---
+
+```{r}
+library(Seurat)
+library(reshape)
+library(dplyr)
+library(tidyr)
+library(harmony)
+library(ggplot2)
+library(SummarizedExperiment)
+library(EnhancedVolcano)
+library(data.table)
+library(cowplot)
+library(RColorBrewer)
+library(scales)
+library(stringr)
+library(pheatmap)
+library(fgsea)
+library(RColorBrewer)
+library(reactome.db)
+library(STRINGdb)
+library(topGO)
+library(org.Hs.eg.db)
+library(data.table)
+library(stringr)
+library(EnhancedVolcano)
+library(data.table)
+library(readr)
+library(Hmisc)
+library(plyr)
+library(reshape2)
+set.seed(4)
+folderPath = "" #<path to github folder>
+figpath = paste0(folderPath, "/figures/Figure4/")
+datpath = paste0(folderPath, "/data/")
+sfigpath = paste0(folderPath, "/figures/Supps/")
+flipx = theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12)) 
+```
+
+## Load Data (may change based on where your data is located)
+```{r}
+srt_harmony = readRDS(paste0(datpath,"harmony_final_srt_nodoublets.rds")) ## path to full QC'd object
+```
+
+## Format Data
+```{R}
+srt_harmony.markers = read.csv(file = paste0(datpath,"all_markers.csv"))
+top2 = srt_harmony.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 2, wt = avg_log2FC)
+
+srt_cluster_cols = c("dodgerblue2",  "deeppink1", "khaki2", "#FF7F00","brown", "skyblue2","palegreen2",  "darkorange4", "#CAB2D6","#FDBF6F" ,  "gray70", "#9400D3", '#E31A1C',  "orchid1",  'green4',  "blue1",  "steelblue4",  "darkturquoise",   "green1",  "black", "yellow4", "gray35","pink2")
+names(srt_cluster_cols) <- levels(srt_harmony$seurat_clusters)
+srt_harmony$clusters_name = paste0("C - ", srt_harmony$seurat_clusters)
+Idents(srt_harmony) = "seurat_clusters"
+cellTypes = c("0 - Preadipocytes","1 - Preadipocytes","2 - IL1B-CCL3-Macrophages","3 - Preadipocytes","4 - Preadipocytes","5 - Preadipocytes","6 - CD4T","7 - Preadipocytes","8 - CD8T and NK", "9 - Preadipocytes","10 - Preadipocytes","11 - Preadipocytes","12 - LYZ-S100A8-Macrophages", "13 - Preadipocytes", "14 - Preadipocytes", "15 - Preadipocytes","16 - Preadipocytes","17 - Granulocytes","18 - MAST", "19 - B","20 - cDC","21 - Endothelial","22 - Preadipocytes")
+names(cellTypes) <- levels(srt_harmony)
+srt_harmony <- RenameIdents(srt_harmony, cellTypes)
+srt_harmony$cellType_v1 = Idents(srt_harmony)
+Idents(srt_harmony) = "seurat_clusters"
+srt_harmony$cellType = paste0("C",srt_harmony$cellType_v1)
+srt_harmony$cellType = factor(srt_harmony$cellType, levels = c("C0 - Preadipocytes","C1 - Preadipocytes","C2 - IL1B-CCL3-Macrophages","C3 - Preadipocytes","C4 - Preadipocytes","C5 - Preadipocytes","C6 - CD4T","C7 - Preadipocytes","C8 - CD8T and NK", "C9 - Preadipocytes","C10 - Preadipocytes","C11 - Preadipocytes","C12 - LYZ-S100A8-Macrophages", "C13 - Preadipocytes", "C14 - Preadipocytes", "C15 - Preadipocytes","C16 - Preadipocytes","C17 - Granulocytes","C18 - MAST", "C19 - B","C20 - cDC","C21 - Endothelial","C22 - Preadipocytes"))
+
+srt_cell_cols = c("dodgerblue2",  "deeppink1", 'green4',  "#FF7F00","brown", "skyblue2","palegreen2",  "darkorange4", "#CAB2D6","#FDBF6F" ,  "gray70", "#9400D3", '#E31A1C',  "orchid1",  "khaki2", "blue1",  "steelblue4",  "darkturquoise",   "green1",  "black", "yellow4", "gray35","pink2")
+names(srt_cell_cols) <- levels(srt_harmony$cellType)
+
+
+srt_harmony.markers = readRDS(file = paste0(datpath,"all_markers_2.rds"))
+srt_harmony.markers_2 = srt_harmony.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 2, wt = avg_log2FC)
+
+celltypes2 =  c("C0 - IL11-PTGS2-Preadipocytes","C1 - KRT18-ALDH1A3-Preadipocytes","C2 - IL1B-CCL3-Macrophages","C3 - MMP3-MMP1-Preadipocytes","C4 - COL3A1-DCN-Preadipocytes","C5 - HIST1H4C-HIST1H1A-Preadipocytes","C6 - CD4T","C7 - PTX3-ADM-Preadipocytes","C8 - CD8T and NK", "C9 - SLPI-KRT8-Preadipocytes","C10 - SNHG15-IL1RL1-Preadipocytes","C11 - UBE2C-TOP2A-Preadipocytes","C12 - LYZ-S100A8-Macrophages", "C13 - HSPA6-HSPA1A-Preadipocytes", "C14 - NEAT1-MTRNR2L8-Preadipocytes", "C15 - CCL20-PTGS2-Preadipocytes","C16 - MGP-CFD-Preadipocytes","C17 - Granulocytes","C18 - MAST", "C19 - B","C20 - cDC","C21 - Endothelial","C22 - SLPI-KRT8-Preadipocytes")
+
+srt_cell_cols2 = c("dodgerblue2",  "deeppink1", 'green4',  "#FF7F00","brown", "skyblue2","palegreen2",  "darkorange4", "#CAB2D6","#FDBF6F" ,  "gray70", "#9400D3", '#E31A1C',  "orchid1",  "khaki2", "blue1",  "steelblue4",  "darkturquoise",   "green1",  "black", "yellow4", "gray35","pink2")
+
+
+Idents(srt_harmony) = "seurat_clusters"
+names(celltypes2) <- levels(srt_harmony)
+srt_harmony <- RenameIdents(srt_harmony, celltypes2)
+srt_harmony$cellType_v2 = Idents(srt_harmony)
+Idents(srt_harmony) = "seurat_clusters"
+srt_harmony$cellType_v2 = factor(srt_harmony$cellType_v2, levels = celltypes2)
+names(srt_cell_cols2) <- levels(srt_harmony$cellType_v2)
+
+### add condition
+srt_harmony$Condition = ifelse(srt_harmony$sampleType_infectionGroup == "SAT_Mock", 'SAT:Mock', 'SAT:SARS-CoV-2')
+srt_harmony$Condition = ifelse(srt_harmony$sampleType_infectionGroup == "VAT_Mock", 'VAT:Mock', srt_harmony$Condition)
+srt_harmony$Condition = ifelse(srt_harmony$sampleType_infectionGroup == "VAT_SARS", 'VAT:SARS-CoV-2', srt_harmony$Condition)
+sampleType_infectionGroup_cols2 = c('SAT:Mock' = "#339CFF", 'SAT:SARS-CoV-2' = "#201A80", 'VAT:Mock' = "#FFA833", 'VAT:SARS-CoV-2' = "#801E1A")
+
+srt_harmony$donor = ifelse(srt_harmony$batch == "batch1", "donor1","donor2")
+srt_harmony$donor = ifelse(srt_harmony$batch == "batch3", "donor3",srt_harmony$donor)
+srt_harmony$donor_inf = paste0(srt_harmony$donor,"-",srt_harmony$sampleType_infectionGroup,"-",srt_harmony$cellType_v2)
+
+# sars metadata
+srt_harmony$sars_containing = ifelse(srt_harmony$SARS_reads > 10, "sars+", "sars-")
+srt_harmony$sars_containing = ifelse(srt_harmony$infection == "Mock", "mock", srt_harmony$sars_containing)
+srt_harmony$log10_SARS_cpm = log10(srt_harmony$SARS_rpm + 1) #
+srt_harmony$log10_SARS_cpm_threshold = ifelse(srt_harmony$sars_containing == "sars+", srt_harmony$log10_SARS_cpm, 0)
+
+
+celltypes4 =  c("C0 - IL11-PTGS2-Preadipocytes","C1 - KRT18-ALDH1A3-Preadipocytes","C2 - IL1B-CCL3-Macrophages","C3 - MMP3-MMP1-Preadipocytes","C4 - COL3A1-DCN-Preadipocytes","C5 - HIST1H4C-HIST1H1A-Preadipocytes","C6 - CD4T","C7 - PTX3-ADM-Preadipocytes","C8 - CD8T and NK", "C9 - SLPI-KRT8-Preadipocytes","C10 - SNHG15-IL1RL1-Preadipocytes","C11 - UBE2C-TOP2A-Preadipocytes","C12 - LYZ-S100A8-Macrophages", "C13 - HSPA6-HSPA1A-Preadipocytes", "C14 - NEAT1-MTRNR2L8-Preadipocytes", "C15 - CCL20-PTGS2-Preadipocytes","C16 - MGP-CFD-Preadipocytes","C17 - Granulocytes","C18 - MAST", "C19 - B","C20 - cDC","C21 - Endothelial","C22 - SLPI-KRT8-Preadipocytes")
+
+celltypes4 = sapply(strsplit(celltypes4, " - "), "[", 1)
+
+srt_cell_cols4 = c("dodgerblue2",  "deeppink1", 'green4',  "#FF7F00","brown", "skyblue2","palegreen2",  "darkorange4", "#CAB2D6","#FDBF6F" ,  "gray70", "#9400D3", '#E31A1C',  "orchid1",  "khaki2", "blue1",  "steelblue4",  "darkturquoise",   "green1",  "black", "yellow4", "gray35","pink2")
+
+names(srt_cell_cols4) <- celltypes4
+```
+
+# Figure 4A
+```{r fig_4A}
+fig_4Aa = DimPlot(srt_harmony, label = TRUE, label.size = 7.5, group.by = "cellType_v2", cols = srt_cell_cols2) + ggtitle("Cell type")
+fig_4Ab = fig_4Aa + theme(legend.position = "none", plot.title = element_text(size = 25, face = "bold"))
+# ggsave(fig_4Aa, filename = paste0(figpath,"fig_4Ab.pdf"),width = 8, height = 7)
+# ggsave(fig_4Ab, filename = paste0(figpath,"fig_4Ab.pdf"),width = 9, height = 7)
+fig_4Ab
+
+srt_harmony@meta.data$clust_name2 = paste0("C",srt_harmony@meta.data$seurat_clusters)
+fig_4Ac = DimPlot(srt_harmony, label = TRUE, label.size = 6.5, group.by = "clust_name2", cols = srt_cell_cols4) + ggtitle("Cell type")
+fig_4Ac = fig_4Ac + theme(legend.position = "none", plot.title = element_text(size = 25, face = "bold"))
+fig_4Ac
+# ggsave(fig_4Ac, filename = paste0(figpath,"fig_4Ac.pdf"),width = 9, height = 7)
+```
+
+# Figure 4B
+```{r}
+fig_4Ba = DimPlot(object = srt_harmony,  group.by = 'Condition', cols = sampleType_infectionGroup_cols2) + ggtitle("Infection & Depot") + theme(legend.text = element_text(size=18), legend.key.height = unit(.85, 'cm'), legend.key.width = unit(.25, 'cm'))
+# ggsave(fig_4Ba, filename = paste0(figpath,"fig_4Ba.pdf"),width = 9, height = 7)
+fig_4Bb = fig_4Ba + theme(legend.position = "none", plot.title = element_text(size = 30, face = "bold"))
+# ggsave(fig_4Bb, filename = paste0(figpath,"fig_4Bb.pdf"),width = 9, height = 7)
+fig_4Bb
+```
+
+# Figure 4C
+```{r}
+SARS_srt = subset(srt_harmony, subset = infection == "SARS")
+SARS_metadata = SARS_srt@meta.data
+SARS_metadata_inf = SARS_metadata[SARS_metadata$sars_containing == "sars+",]
+
+quant = quantile(SARS_metadata_inf$log10_SARS_cpm_threshold, probs = seq(0, 1, 1/20))
+quant
+
+fig_4Ca = FeaturePlot(SARS_srt, features = "log10_SARS_cpm_threshold") + ggtitle("SARS-CoV2 CPM (log10)")
+# ggsave(fig_4Ca, filename = paste0(figpath,"fig_4Ca.pdf"),width = 9, height = 7)
+fig_4Cb = fig_4Ca + theme(plot.title = element_text(size = 30, face = "bold")) # legend.position = "none", 
+# ggsave(fig_4Cb, filename = paste0(figpath,"fig_4Cb.pdf"),width = 9, height = 7)
+fig_4Cb
+```
+
+# Figure 4D
+```{r}
+srt_metadata = srt_harmony@meta.data
+SARS_metadata = srt_metadata[srt_metadata$infection == "SARS",]
+SARS_metadata = as.data.table(SARS_metadata)
+
+
+counts1 = SARS_metadata[, .(total_cells = .N, mean_infection = mean(log10_SARS_cpm),  mean_infection_threshold = mean(log10_SARS_cpm_threshold), median_infection = median(log10_SARS_cpm),  median_infection_threshold = median(log10_SARS_cpm_threshold), mean_rna = mean(nCount_RNA)), by = cellType]
+counts2 = SARS_metadata[SARS_reads > 0, .(total_sars_cells = .N), by = cellType]
+counts3 = SARS_metadata[log10_SARS_cpm_threshold > 0, .(total_sars_cells_threshold = .N), by = cellType]
+sars_counts <- Reduce(function(...) merge(..., all = TRUE, by = "cellType"), list(counts1, counts2, counts3))
+sars_counts$percent_sars = sars_counts$total_sars_cells/sars_counts$total_cells
+sars_counts$percent_sars_threshold = sars_counts$total_sars_cells_threshold/sars_counts$total_cells
+length(SARS_metadata[SARS_metadata$SARS_reads > 0,]$orig.ident)/ length(SARS_metadata$orig.ident) # 43% of cells are infected
+topVals = sars_counts[order(-sars_counts$percent_sars_threshold),][1:8,]$cellType
+
+topVals_5 = topVals[1:5]
+
+counts_donor1 = SARS_metadata[, .(total_cells = .N, mean_infection = mean(log10_SARS_cpm),  mean_infection_threshold = mean(log10_SARS_cpm_threshold), median_infection = median(log10_SARS_cpm),  median_infection_threshold = median(log10_SARS_cpm_threshold), mean_rna = mean(nCount_RNA)), by = .(cellType,donor,sampleType)]
+counts_donor1$donor_cell = paste0(counts_donor1$cellType,"_",counts_donor1$donor,"_",counts_donor1$sampleType)
+
+counts_donor2 = SARS_metadata[SARS_reads > 0, .(total_sars_cells = .N), by = .(cellType,donor,sampleType)]
+counts_donor2$donor_cell = paste0(counts_donor2$cellType,"_",counts_donor2$donor,"_",counts_donor2$sampleType)
+
+counts_donor3 = SARS_metadata[log10_SARS_cpm_threshold > 0, .(total_sars_cells_threshold = .N), by = .(cellType,donor,sampleType)]
+counts_donor3$donor_cell = paste0(counts_donor3$cellType,"_",counts_donor3$donor,"_",counts_donor3$sampleType)
+
+sars_donor_counts <- Reduce(function(...) merge(..., all = TRUE, by = "donor_cell"), list(counts_donor1, counts_donor2, counts_donor3))
+
+sars_donor_counts$percent_sars = sars_donor_counts$total_sars_cells/sars_donor_counts$total_cells
+sars_donor_counts$percent_sars_threshold = sars_donor_counts$total_sars_cells_threshold/sars_donor_counts$total_cells
+sars_donor_counts$cellType.y = NULL
+sars_donor_counts$donor.y = NULL
+
+
+IndividulCounts = sars_donor_counts
+IndividulCounts_sub = IndividulCounts[IndividulCounts$cellType.x %in% topVals_5,]
+IndividulCounts_sub$donor_depot = paste0(IndividulCounts_sub$donor.x,"_",IndividulCounts_sub$sampleType.x)
+
+sampleType_infectionGroup_cols3 = c('SAT' = "#201A80", 'VAT' = "#801E1A")
+
+IndividulCounts_sub$percentage = IndividulCounts_sub$percent_sars_threshold * 100
+IndividulCounts_sub$Donor = IndividulCounts_sub$donor.x
+IndividulCounts_sub$Cell_Type = IndividulCounts_sub$cellType.x
+IndividulCounts_sub$Depot = IndividulCounts_sub$sampleType.x
+
+my_comparisons_cells = list(  c("C12 - LYZhigh Macrophages", "C21 - Endothelial") , c("C2 - IL1Bhigh Macrophages", "C12 - LYZhigh Macrophages"))
+IndividulCounts_sub$Cell_Type = factor(IndividulCounts_sub$Cell_Type, levels = topVals_5) ## run below chunk for topVals
+
+IndividulCounts_sub2 = IndividulCounts_sub
+IndividulCounts_sub2 = separate(data = IndividulCounts_sub2, col = Cell_Type, into = c("Cell", NA), sep = " - ")
+IndividulCounts_sub2$Cell = factor(IndividulCounts_sub2$Cell, levels = sapply(strsplit(levels(IndividulCounts_sub$Cell_Type), " - "), "[", 1))
+
+fig_4D = ggplot(IndividulCounts_sub2, aes(x = Cell, y = percentage)) +  geom_boxplot(aes(fill = cellType.x), show.legend = F, outlier.shape = NA) + theme_classic() + geom_point(aes(fill = Depot), color = "white", pch=21, size = 6, position=position_dodge(width=0.5))   +  scale_fill_manual(values = c(srt_cell_cols, sampleType_infectionGroup_cols3))  + xlab("Cell Type Cluster") + ylab(str_wrap("Percentage of SARS-CoV-2 Exposed Cells with >10 viral UMIs", width = 40)) + scale_x_discrete(labels = function(x) str_wrap(x, width = 12)) + theme(legend.position = "none")+ theme(text = element_text(size = 25))  +theme(axis.text.y = element_text(size=20), axis.text.x = element_text(size=25)) + ggtitle("") 
+fig_4D
+# ggsave(fig_4D, filename = paste0(figpath, "fig_4D.pdf"), height = 12, width = 18)
+```
+
+# Figure 4E
+```{r}
+macrophage_srt = subset(srt_harmony, subset = seurat_clusters %in% c(2,12))
+macrophage_srt$orig.clusters = macrophage_srt$seurat_clusters
+macrophage_srt <- RunPCA(macrophage_srt, verbose = FALSE, npcs = 50)
+macrophage_srt <- RunHarmony(object = macrophage_srt, assay.use = "SCT", reduction = "pca", dims.use = 1:50, group.by.vars = "batch",plot_convergence = TRUE)
+macrophage_srt <- RunUMAP(object = macrophage_srt, assay = "SCT", reduction = "harmony", dims = 1:50)
+macrophage_srt <- FindNeighbors(object = macrophage_srt, assay = "SCT", reduction = "harmony", dims = 1:50)
+macrophage_srt <- FindClusters(macrophage_srt, resolution = .3, verbose = FALSE)
+SARS_macrophage_srt = subset(macrophage_srt, subset = infection == "SARS")
+
+Fig_4Ea = FeaturePlot(SARS_macrophage_srt, features = "log10_SARS_cpm_threshold")+ theme(plot.title = element_text(size = 25, face = "bold")) + ggtitle("SARS-CoV-2 CPM (log10)")
+# ggsave(Fig_4Ea, filename = paste0(figpath,"Fig_4Ea.pdf"),width = 9, height = 7)
+Fig_4Ea
+
+
+## bar
+p1 <- FeaturePlot(SARS_macrophage_srt, features = c("CD68","LYZ", "IL1B","ACE2"), combine = FALSE ) #+ theme_void()
+fix.sc <- scale_color_gradientn( colours = c('lightgrey', 'blue'),  limits = c(0, 8))
+
+p2 <- lapply(p1, function (x) x + fix.sc + theme(
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      axis.ticks=element_blank(),
+      panel.background=element_blank()))
+Fig_4Eb = CombinePlots(p2, ncol = 1)
+# ggsave(Fig_4Eb, filename = paste0(figpath,"Fig_4Ea.pdf"),width = 3, height = 8)
+Fig_4Eb
+```
+
+# Figure 4F
+```{r}
+macrophage_srt$macrophage_infection = paste0(macrophage_srt$clusters_name,": ",macrophage_srt$infection)
+macrophage_srt$macrophage_infection2 = macrophage_srt$macrophage_infection
+macrophage_srt$macrophage_infection2 = gsub(" - ", "", macrophage_srt$macrophage_infection2)
+macrophage_srt$macrophage_infection2 = gsub("SARS","SARS-CoV-2", macrophage_srt$macrophage_infection2)
+macrophage_srt$macrophage_infection4 = macrophage_srt$macrophage_infection2
+macrophage_srt$macrophage_infection4 = gsub("2: S", "2: \nS",macrophage_srt$macrophage_infection4)
+
+macrophage_srt$macrophage_infection3 = str_wrap(macrophage_srt$macrophage_infection2, width = 10)
+macrophage_srt$log10_SARS_cpm = log10(macrophage_srt$SARS_rpm + 1)
+macrophage_srt@meta.data$`SARS-CoV-2 \ncpm` = macrophage_srt$log10_SARS_cpm
+
+Fig_4Fa = DotPlot(macrophage_srt, group.by = "macrophage_infection4", features = c("ACE2","BSG","NRP1","NRP2","TMPRSS2","TMPRSS11A","TMPRSS11B","SIGLEC1","CTSB","CTSL","DPP4","FURIN","IFITM1","IFITM2","IFITM3","IFNAR1","IFNAR2","LYZ","IL1B","SARS-CoV-2 \ncpm")) + flipx +  scale_colour_gradient2(low = muted("#6495ED"), mid = "white", high = muted("#ff4040"), midpoint = 0, breaks = c(-1,0,1)) + ylab("") + xlab("") + theme(legend.position = "top", legend.justification='center')
+Fig_4Fa
+
+# ggsave(Fig_4Fa, filename = paste0(figpath, "Fig_4Fa.pdf"), height = 6, width = 10)
+```
+
