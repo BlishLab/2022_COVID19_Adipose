@@ -218,7 +218,7 @@ ifelse(!dir.exists(file.path(datpath, "DEGs")), dir.create(file.path(datpath, "D
 ifelse(!dir.exists(file.path(paste0(datpath,"DEGs/"), "adiposeOnly")), dir.create(file.path(paste0(datpath,"DEGs/"), "adiposeOnly")), FALSE)
 ifelse(!dir.exists(file.path(datpath, file.path(paste0(datpath,"DEGs/adiposeOnly"),"SAT"))), dir.create(file.path(datpath, "DEGs/adiposeOnly/SAT/")), FALSE)
 
-## donnor1
+## donor1
 subset = subset(sat, subset = donor == "donor1")
 groupOfInterest = c("SAT_Mock", "SAT_SARS")
 subset$seurat_clusters = subset$adi_res05
@@ -260,7 +260,7 @@ for (i in 0:(length(unique(subset$seurat_clusters)) - 1)){
 }
 
 
-## donnor2
+## donor2
 subset = subset(sat, subset = donor == "donor2")
 groupOfInterest = c("SAT_Mock", "SAT_SARS")
 subset$seurat_clusters = subset$adi_res05
@@ -300,7 +300,7 @@ for (i in 0:(length(unique(subset$seurat_clusters)) - 1)){
   print(paste0(i,"_done"))
 }
 
-## donnor3
+## donor3
 subset = subset(sat, subset = donor == "donor3")
 groupOfInterest = c("SAT_Mock", "SAT_SARS")
 subset$seurat_clusters = subset$adi_res05
