@@ -2,4 +2,4 @@
 
 Reproducibility repository accompanying Martínez-Colón, Ratnasiri, et al. "SARS-CoV-2 infection drives an inflammatory response in human adipose tissue through infection of adipocytes and macrophages" currently available on [bioRxiv](https://www.biorxiv.org/content/10.1101/2021.10.24.465626v1.full?fbclid=IwAR1r812sTIAtdsvtOGYkADCqWno8cfLSHoFfWCoWZL4zVpRZWDGz_lvOywo).
 
-Link to raw sequencing data will be available upon publication at the NCBI Gene Expression Omnibus (accession number TBD).
+scRNA-seq data are available under accession number GSE208034.
