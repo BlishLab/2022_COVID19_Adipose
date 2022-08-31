@@ -1,0 +1,414 @@
+---
+title: "Figure 6 Code"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(Seurat)
+library(reshape)
+library(dplyr)
+library(tidyr)
+library(harmony)
+library(ggplot2)
+library(SummarizedExperiment)
+library(EnhancedVolcano)
+library(data.table)
+library(cowplot)
+library(RColorBrewer)
+library(scales)
+library(stringr)
+library(pheatmap)
+library(fgsea)
+library(RColorBrewer)
+library(reactome.db)
+library(STRINGdb)
+library(topGO)
+library(org.Hs.eg.db)
+library(data.table)
+library(ComplexHeatmap)
+library(circlize)
+library(ComplexHeatmap)
+library(dendextend)
+set.seed(4)
+folderPath = "" #<path to working folder>
+figpath = paste0(folderPath, "figures/Figure5/")
+datpath = paste0(folderPath, "data/")
+sfigpath = paste0(folderPath, "figures/Supps/")
+flipx = theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12)) 
+source(paste0(folderPath,"scripts/","Fig6_functions.R"))
+participant_pal = c("#117733", "#AA4499", "#888888")
+part_list = (c("Participant 1"=participant_pal[1],"Participant 2"=participant_pal[2], "Participant 3" = participant_pal[3]))
+```
+
+## Load Data (may change based on where your data is located)
+```{r}
+srt_harmony = readRDS(paste0(datpath,"harmony_final_srt_nodoublets.rds")) ## path to full QC'd object
+```
+
+## Format Data
+```{r}
+DimPlot(srt_harmony, label = TRUE)
+srt_harmony$granular_cells = ifelse(srt_harmony$seurat_clusters %in% c(2,12,20,19,18,21,17,8,6), "immune", "adipose")
+
+adipose = subset(srt_harmony, subset = granular_cells == "adipose")
+adipose <- RunPCA(adipose, verbose = FALSE, npcs = 50)
+adipose <- RunUMAP(adipose, dims = 1:50, verbose = FALSE)
+adipose <- FindNeighbors(adipose, dims = 1:50, verbose = FALSE)
+adipose <- FindClusters(adipose, resolution = .6, verbose = FALSE)
+saveRDS(adipose, file = paste0(datpath,"adipose_nodoublets.rds"))
+adipose = readRDS(file = paste0(datpath,"adipose_nodoublets.rds"))
+adipose = subset(adipose, subset = res_06 != 14) ## removing 14 because defined by mito 
+adipose <- RunPCA(adipose, verbose = FALSE, npcs = 50)
+adipose <- RunHarmony(object = adipose, assay.use = "SCT", reduction = "pca", dims.use = 1:50, group.by.vars = "batch",plot_convergence = TRUE)
+adipose <- RunUMAP(object = adipose, assay = "SCT", reduction = "harmony", dims = 1:50)
+adipose <- FindNeighbors(object = adipose, assay = "SCT", reduction = "harmony", dims = 1:50)
+adipose <- FindClusters(adipose, resolution = .6, verbose = FALSE)
+DimPlot(adipose, label = TRUE) + NoLegend()
+adipose$adi_res06 = Idents(adipose)
+adipose <- FindClusters(adipose, resolution = .5, verbose = FALSE)
+adipose$adi_res05 = Idents(adipose)
+saveRDS(adipose, file = paste0(datpath,"adipose_nodoublets_no14.rds"))
+```
+
+## making object subsest
+```{r}
+adipose = readRDS(paste0(datpath,"adipose_nodoublets_no14.rds"))
+adipose$seurat_clusters = adipose$adi_res05
+
+adipose$Condition = ifelse(adipose$sampleType_infectionGroup == "SAT_Mock", 'SAT:Mock', 'SAT:SARS-CoV-2')
+adipose$Condition = ifelse(adipose$sampleType_infectionGroup == "VAT_Mock", 'VAT:Mock', adipose$Condition)
+adipose$Condition = ifelse(adipose$sampleType_infectionGroup == "VAT_SARS", 'VAT:SARS-CoV-2', adipose$Condition)
+
+adipose$clusters1 = paste0("P-",adipose$seurat_clusters)
+adipose$clusters1 = factor(adipose$clusters1, levels = c("P-0", "P-1","P-2","P-3","P-4","P-5", "P-6","P-7","P-8","P-9","P-10", "P-11","P-12","P-13","P-14","P-15","P-16"))
+
+adipose$clusters = paste0("P",adipose$seurat_clusters)
+adipose$clusters = factor(adipose$clusters, levels = c("P0", "P1","P2","P3","P4","P5", "P6","P7","P8","P9","P10", "P11","P12","P13","P14","P15","P16"))
+
+adipose$donor = ifelse(adipose$batch == "batch1", "donor1","donor2")
+adipose$donor = ifelse(adipose$batch == "batch3", "donor3",adipose$donor)
+
+sampleType_infectionGroup_cols2 = c('SAT:Mock' = "#339CFF", 'SAT:SARS-CoV-2' = "#201A80", 'VAT:Mock' = "#FFA833", 'VAT:SARS-CoV-2' = "#801E1A")
+
+adipose$depot = ifelse(grepl("SAT",adipose$Condition), "SAT", "VAT")
+
+adipose$participant = gsub("donor", "Participant_", adipose$donor)
+
+# sars metadata
+adipose$sars_containing = ifelse(adipose$SARS_reads > 10, "sars+", "sars-")
+adipose$sars_containing = ifelse(adipose$infection == "Mock", "mock", adipose$sars_containing)
+adipose$log10_SARS_cpm = log10(adipose$SARS_rpm + 1) #
+adipose$log10_SARS_cpm_threshold = ifelse(adipose$sars_containing == "sars+", adipose$log10_SARS_cpm, 0)
+```
+
+
+```{r}
+adipose = readRDS(paste0(datpath, "data/postHarmony/adipose_nodoublets_no14_subset.rds"))
+```
+
+```{r fig_6A}
+fig_6Aa = DimPlot(adipose, label = TRUE, group.by = "clusters", label.size = 7.5)  + ggtitle("All Preadipocyte Cells") + theme(legend.position = "none", plot.title = element_text(size = 25, face = "bold"))
+# ggsave(fig_6Aa, filename = paste0(figpath,"6Aa",".pdf"),width = 9, height = 7)
+fig_6Aa
+```
+
+```{r fig_6B}
+fig_6Ba = DimPlot(object = adipose,  group.by = 'Condition', cols = sampleType_infectionGroup_cols2) + ggtitle("Infection & Depot") + theme(legend.text = element_text(size=18), legend.key.height = unit(.85, 'cm'), legend.key.width = unit(.25, 'cm'))
+# ggsave(fig_6Ba, filename = paste0(figpath,"6Ba.pdf"),width = 9, height = 7)
+fig_6Bb = fig_6Ba + theme(legend.position = "none", plot.title = element_text(size = 25, face = "bold"))
+# ggsave(fig_6Bb, filename = paste0(figpath,"6Bb.pdf"),width = 9, height = 7)
+fig_6Bb
+```
+
+```{r fig_6C}
+fig_6Ca_table = (table(adipose@meta.data$clusters, adipose@meta.data$Condition))
+fig_6Ca_table = as.data.frame(fig_6Ca_table)
+colnames(fig_6Ca_table) = c("seurat_clusters", "Condition","frequency")
+
+fig_6Ca = ggplot(fig_6Ca_table, aes(fill=Condition, y=frequency, x=seurat_clusters)) +
+    geom_bar(position="fill", stat="identity") + scale_fill_manual(values=sampleType_infectionGroup_cols2)+ xlab("Cluster") + ylab("Frequency") + flipx
+fig_6Cb = fig_6Ca + theme(text = element_text(size = 18), axis.text.x = element_text(size = 18)) + theme(legend.position = "none")
+fig_6Cb
+# ggsave(fig_6Ca, filename = paste0(figpath,"fig_6Ca.pdf"),width = 7, height = 5)
+# ggsave(fig_6Cb, filename = paste0(figpath,"fig_6Cb.pdf"),width = 7, height = 5)
+```
+
+```{r fig_6D}
+p1 <- FeaturePlot(adipose, features = c("MGP","APOD","FABP5","CD36","FN1","LOXL1","KRT8","MSLN","IFI27","IL6"), combine = FALSE )
+for (i in 1:length(p1)){
+  p1[[i]] = p1[[i]]+ theme(axis.ticks = element_blank(), axis.text = element_blank(), axis.title = element_blank(), legend.title = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), plot.title = element_text(face = "bold.italic"),panel.background = element_rect(colour = "black", size=1), legend.position="none")
+}
+fix.sc <- scale_color_gradientn( colours = c('lightgrey', 'blue'),  limits = c(0, 4))
+
+p2 <- lapply(p1, function (x) x + fix.sc)
+Fig_6Da = CombinePlots(p2, ncol = 2)
+Fig_6Da
+# ggsave(Fig_6Da, filename = paste0(figpath,"Fig_6Da.pdf"), height = 12, width = 7)
+
+Fig_6Db = FeaturePlot(adipose, features = c("MGP","APOD","FABP5","CD36","FN1","LOXL1","KRT8","MSLN","IFI27","IL6"))
+Fig_6Db
+# ggsave(Fig_6Db, filename = paste0(figpath,"Fig_6Db.pdf"), height = 12, width = 7)
+
+Fig_6Dc = FeaturePlot(adipose, features = "CXCL14", max.cutoff = 4)
+Fig_6Dc
+# ggsave(Fig_6Dc, filename = paste0(figpath,"Fig_6Dc.pdf"), height = 12, width = 7)
+```
+## Figure 6E: ISG/Cytokine Scores
+```{r fig_6E}
+gene_lists = read.csv(paste0(datpath,"isgs.csv"))
+isg_genes = gene_lists$ISG
+# isg_genes = isg_genes[isg_genes != ""]
+isg_genes = isg_genes[isg_genes %in% rownames(adipose)]
+cyto_genes = gene_lists$Detected.Cytokines
+cyto_genes = cyto_genes[cyto_genes %in% rownames(adipose)]
+
+score.srt = adipose
+score.srt <- AddModuleScore(score.srt, features = list(as.character(isg_genes)), name = "IFN") #NB: control features are randomly selected, so results may vary slightly
+score.srt$sample = paste0(score.srt$Condition,"~",score.srt$participant,"~",score.srt$depot)
+ISG.scores <- aggregate(score.srt$IFN1, by = list(score.srt$sample), FUN = mean)
+colnames(ISG.scores) = c("sample", "ISG_Scores")
+
+score.srt <- AddModuleScore(score.srt, features = list(as.character(cyto_genes)), name = "CYT") #NB: control features are randomly selected, so results may vary slightly
+score.srt$sample = paste0(score.srt$Condition,"~",score.srt$participant,"~",score.srt$depot)
+CYTO.scores <- aggregate(score.srt$CYT1, by = list(score.srt$sample), FUN = mean)
+colnames(CYTO.scores) = c("sample", "Cytokine_Scores")
+
+
+CYTO.scores$x = NULL
+ISG.scores$x = NULL
+score_table = merge(CYTO.scores, ISG.scores, by = "sample")
+# score_table  = separate(score_table, col = sample, into = c("Condition","Donor","Depot"), sep = "_")
+
+
+
+combined_scores = melt(score_table, id = "sample")
+colnames(combined_scores)[2:3] = c("score_type","score")
+combined_scores$sample2 = combined_scores$sample
+combined_scores  = separate(combined_scores, col = sample2, into = c("Infection","Participant","Depot"), sep = "~")
+combined_scores$Condition = combined_scores$Infection
+combined_scores$Condition = gsub("SARS.CoV.2","SARS-CoV-2",combined_scores$Condition)
+
+ggplot(combined_scores, aes(x=Condition, y=score, group=Condition, fill = Condition)) + geom_boxplot() + scale_fill_manual(values = sampleType_infectionGroup_cols2) +  facet_wrap(~score_type)+ geom_point(aes(color = Participant, size = 8)) + ggtitle("Cytokine Scores")+ theme_bw() + theme(text = element_text(size = 15),plot.title = element_text(size = 20, face = "bold")) + scale_size(guide = "none")
+
+
+combined_scores$score_type2 = ifelse(combined_scores$score_type == "Cytokine_Scores", "Cytokine Score", "ISG Score")
+combined_scores$Participant = gsub("_"," ", combined_scores$Participant)
+
+
+
+fig_6Ea = ggplot(combined_scores, aes(x=Condition, y=score, group=Condition, fill = Condition)) + geom_boxplot() + scale_fill_manual(values = sampleType_infectionGroup_cols2) +  facet_wrap(~score_type2, nrow = 2)+ geom_point(aes(color = Participant, size = 8)) +  theme_bw() + theme(text = element_text(size = 15),plot.title = element_text(size = 20, face = "bold")) + scale_size(guide = "none") + theme(strip.text.x = element_text(size = 20, colour = "black"),strip.text.y = element_text(size = 20, colour = "black"), text = element_text(size=20))  + scale_color_manual(values = participant_pal)
+fig_6Ea = fig_6Ea + theme(strip.background =element_rect(fill="white")) + theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
+fig_6Ea
+# ggsave(fig_6Ea, filename = paste0(figpath,"fig_6Ea.pdf"),width = 10, height = 15)
+# ggsave(fig_6Ea, filename = paste0(figpath,"fig_6Ea.pdf"),width = 8, height = 8)
+fig_6Eb = fig_6Ea + theme(legend.position = "none")
+fig_6Eb
+# ggsave(fig_6Eb, filename = paste0(figpath,"fig_6Eb.pdf"),width = 6, height = 8)
+```
+
+## Figure 6Fa: Preadipocyte DEG Pathway Enrichment
+```{r fig_6Fa}
+vat = subset(adipose, subset = depot == "VAT")
+sat = subset(adipose, subset = depot == "SAT")
+
+ifelse(!dir.exists(file.path(datpath, "DEGs")), dir.create(file.path(datpath, "DEGs")), FALSE)
+ifelse(!dir.exists(file.path(paste0(datpath,"DEGs/"), "adiposeOnly")), dir.create(file.path(paste0(datpath,"DEGs/"), "adiposeOnly")), FALSE)
+ifelse(!dir.exists(file.path(datpath, file.path(paste0(datpath,"DEGs/adiposeOnly"),"SAT"))), dir.create(file.path(datpath, "DEGs/adiposeOnly/SAT/")), FALSE)
+
+subset = subset(sat, subset = donor == "donor1")
+groupOfInterest = c("SAT_Mock", "SAT_SARS")
+subset$seurat_clusters = subset$adi_res05
+Idents(subset) = "sampleType_infectionGroup"
+subset <- subset(subset, idents = groupOfInterest)
+unique(Idents(subset))
+Idents(subset) = "seurat_clusters"
+ifelse(!dir.exists(file.path(datpath, file.path(paste0(datpath,"DEGs/adiposeOnly/SAT"),"d1"))), dir.create(file.path(datpath, "DEGs/adiposeOnly/SAT/d1")), FALSE)
+
+
+for (i in 0:(length(unique(subset$seurat_clusters)) - 1)){
+  subsetL = subset@meta.data[subset@meta.data$seurat_clusters == i,]$infection
+  if (sum(subsetL == "SARS") >= 3 && sum(subsetL == "Mock") >= 3) {
+    immune.deg.cluster0 <- FindMarkers(subset, ident.1 = "SARS", ident.2 = "Mock", verbose = TRUE, group.by="infection", subset.ident = i, logfc.threshold = .1)
+    write.csv(immune.deg.cluster0, file = paste0(datpath, "DEGs/adiposeOnly/SAT/d1/","clust",i,"_DEGs_SARSvMock_adipose.csv"))
+  }
+  print(paste0(i,"_done"))
+}
+
+ifelse(!dir.exists(file.path(datpath, file.path(paste0(datpath,"DEGs/adiposeOnly"),"VAT"))), dir.create(file.path(datpath, "DEGs/adiposeOnly/VAT/")), FALSE)
+
+subset = subset(vat, subset = donor == "donor1")
+groupOfInterest = c("VAT_Mock", "VAT_SARS")
+subset$seurat_clusters = subset$adi_res05
+Idents(subset) = "sampleType_infectionGroup"
+subset <- subset(subset, idents = groupOfInterest)
+unique(Idents(subset))
+Idents(subset) = "seurat_clusters"
+ifelse(!dir.exists(file.path(datpath, file.path(paste0(datpath,"DEGs/adiposeOnly/VAT"),"d1"))), dir.create(file.path(datpath, "DEGs/adiposeOnly/VAT/d1")), FALSE)
+
+
+for (i in 0:(length(unique(subset$seurat_clusters)) - 1)){
+  subsetL = subset@meta.data[subset@meta.data$seurat_clusters == i,]$infection
+  if (sum(subsetL == "SARS") >= 3 && sum(subsetL == "Mock") >= 3) {
+    immune.deg.cluster0 <- FindMarkers(subset, ident.1 = "SARS", ident.2 = "Mock", verbose = TRUE, group.by="infection", subset.ident = i, logfc.threshold = .1)
+    write.csv(immune.deg.cluster0, file = paste0(datpath, "DEGs/adiposeOnly/VAT/d1/","clust",i,"_DEGs_SARSvMock_adipose.csv"))
+  }
+  print(paste0(i,"_done"))
+}
+
+
+#d2
+subset = subset(sat, subset = donor == "donor2")
+groupOfInterest = c("SAT_Mock", "SAT_SARS")
+subset$seurat_clusters = subset$adi_res05
+Idents(subset) = "sampleType_infectionGroup"
+subset <- subset(subset, idents = groupOfInterest)
+unique(Idents(subset))
+Idents(subset) = "seurat_clusters"
+ifelse(!dir.exists(file.path(datpath, file.path(paste0(datpath,"DEGs/adiposeOnly/SAT"),"d2"))), dir.create(file.path(datpath, "DEGs/adiposeOnly/SAT/d2")), FALSE)
+
+
+for (i in 0:(length(unique(subset$seurat_clusters)) - 1)){
+  subsetL = subset@meta.data[subset@meta.data$seurat_clusters == i,]$infection
+  if (sum(subsetL == "SARS") >= 3 && sum(subsetL == "Mock") >= 3) {
+    immune.deg.cluster0 <- FindMarkers(subset, ident.1 = "SARS", ident.2 = "Mock", verbose = TRUE, group.by="infection", subset.ident = i, logfc.threshold = .1)
+    write.csv(immune.deg.cluster0, file = paste0(datpath, "DEGs/adiposeOnly/SAT/d2/","clust",i,"_DEGs_SARSvMock_adipose.csv"))
+  }
+  print(paste0(i,"_done"))
+}
+
+
+subset = subset(vat, subset = donor == "donor2")
+groupOfInterest = c("VAT_Mock", "VAT_SARS")
+subset$seurat_clusters = subset$adi_res05
+Idents(subset) = "sampleType_infectionGroup"
+subset <- subset(subset, idents = groupOfInterest)
+unique(Idents(subset))
+Idents(subset) = "seurat_clusters"
+ifelse(!dir.exists(file.path(datpath, file.path(paste0(datpath,"DEGs/adiposeOnly/VAT"),"d2"))), dir.create(file.path(datpath, "DEGs/adiposeOnly/VAT/d2")), FALSE)
+
+
+for (i in 0:(length(unique(subset$seurat_clusters)) - 1)){
+  subsetL = subset@meta.data[subset@meta.data$seurat_clusters == i,]$infection
+  if (sum(subsetL == "SARS") >= 3 && sum(subsetL == "Mock") >= 3) {
+    immune.deg.cluster0 <- FindMarkers(subset, ident.1 = "SARS", ident.2 = "Mock", verbose = TRUE, group.by="infection", subset.ident = i, logfc.threshold = .1)
+    write.csv(immune.deg.cluster0, file = paste0(datpath, "DEGs/adiposeOnly/VAT/d2/","clust",i,"_DEGs_SARSvMock_adipose.csv"))
+  }
+  print(paste0(i,"_done"))
+}
+
+## b3
+subset = subset(sat, subset = donor == "donor3")
+groupOfInterest = c("SAT_Mock", "SAT_SARS")
+subset$seurat_clusters = subset$adi_res05
+Idents(subset) = "sampleType_infectionGroup"
+subset <- subset(subset, idents = groupOfInterest)
+unique(Idents(subset))
+Idents(subset) = "seurat_clusters"
+ifelse(!dir.exists(file.path(datpath, file.path(paste0(datpath,"DEGs/adiposeOnly/SAT"),"d3"))), dir.create(file.path(datpath, "DEGs/adiposeOnly/SAT/d3")), FALSE)
+
+
+for (i in 0:(length(unique(subset$seurat_clusters)) - 1)){
+  subsetL = subset@meta.data[subset@meta.data$seurat_clusters == i,]$infection
+  if (sum(subsetL == "SARS") >= 3 && sum(subsetL == "Mock") >= 3) {
+    immune.deg.cluster0 <- FindMarkers(subset, ident.1 = "SARS", ident.2 = "Mock", verbose = TRUE, group.by="infection", subset.ident = i, logfc.threshold = .1)
+    write.csv(immune.deg.cluster0, file = paste0(datpath, "DEGs/adiposeOnly/SAT/d3/","clust",i,"_DEGs_SARSvMock_adipose.csv"))
+  }
+  print(paste0(i,"_done"))
+}
+
+
+subset = subset(vat, subset = donor == "donor2")
+groupOfInterest = c("VAT_Mock", "VAT_SARS")
+subset$seurat_clusters = subset$adi_res05
+Idents(subset) = "sampleType_infectionGroup"
+subset <- subset(subset, idents = groupOfInterest)
+unique(Idents(subset))
+Idents(subset) = "seurat_clusters"
+ifelse(!dir.exists(file.path(datpath, file.path(paste0(datpath,"DEGs/adiposeOnly/VAT"),"d3"))), dir.create(file.path(datpath, "DEGs/adiposeOnly/VAT/d3")), FALSE)
+
+
+for (i in 0:(length(unique(subset$seurat_clusters)) - 1)){
+  subsetL = subset@meta.data[subset@meta.data$seurat_clusters == i,]$infection
+  if (sum(subsetL == "SARS") >= 3 && sum(subsetL == "Mock") >= 3) {
+    immune.deg.cluster0 <- FindMarkers(subset, ident.1 = "SARS", ident.2 = "Mock", verbose = TRUE, group.by="infection", subset.ident = i, logfc.threshold = .1)
+    write.csv(immune.deg.cluster0, file = paste0(datpath, "DEGs/adiposeOnly/VAT/d3/","clust",i,"_DEGs_SARSvMock_adipose.csv"))
+  }
+  print(paste0(i,"_done"))
+}
+```
+
+## Figure 6Fb: SAT Heatmap Generation
+```{r fig_6Fb}
+gitPath = "/Volumes/GoogleDrive/.shortcut-targets-by-id/0B5PFTPY_3B9MdkpncmIzRW43UEk/Blish Lab/00 - All Server Data and Folders/Kalani/Experiments/KR02_AdiposeSarsInfection/pub_ready/github_upload/"
+figpath_git = paste0(gitPath, "figures/Figure6/")
+datpath_git = paste0(gitPath, "data/")
+sfigpath = paste0(gitPath, "figures/Supps/")
+
+ordered_adiposeclust = c("clust0","clust1","clust2","clust3","clust4","clust5","clust6","clust7","clust8","clust9","clust10","clust11","clust12","clust13","clust14","clust15","clust16")
+
+
+SAT_batch1_paths_raw = fgseaOuts(paste0(datpath_git, "DEGs/adiposeOnly/SAT/d1/"), "donor1_")
+SAT_batch2_paths_raw = fgseaOuts(paste0(datpath_git, "DEGs/adiposeOnly/SAT/d2/"), "donor2_")
+SAT_batch3_paths_raw = fgseaOuts(paste0(datpath_git, "DEGs/adiposeOnly/SAT/d3/"), "donor3_")
+
+
+SAT_batch1_paths = getClusterPaths(SAT_batch1_paths_raw, "donor1_")
+SAT_batch2_paths = getClusterPaths(SAT_batch2_paths_raw, "donor2_")
+SAT_batch3_paths = getClusterPaths(SAT_batch3_paths_raw, "donor3_")
+
+
+## combine outputs
+SAT_collapsed = combineThree_collapsed(SAT_batch1_paths, SAT_batch2_paths, SAT_batch3_paths)
+# SAT_collapsed = combineTwo_collapsed(SAT_batch1_paths, SAT_batch2_paths)
+SAT_all = combineThree_all(SAT_batch1_paths, SAT_batch2_paths, SAT_batch3_paths)
+# SAT_all = combineTwo_all(SAT_batch1_paths, SAT_batch2_paths)
+
+row_annotations = read.csv(paste0(datpath,"pathway_annotations.csv"))
+
+inputDF = SAT_all
+inputDF <- inputDF[apply(inputDF, 1, FUN = function(x){sum(x != 0)}) >= 4,]
+
+row_df = data.frame("pathways" = rownames(inputDF))
+row_df2 = merge(row_df, row_annotations, by = "pathways", all.x = TRUE, all.y = FALSE)
+rownames(row_df2) = row_df2$pathways
+# row_df2$pathways = NULL
+dim(row_df2)
+
+# row_annotations_raw =  row_df2
+row_labels = row_df2
+# row_labels = row_annotations_raw[,c(1,3)]
+row_labels2 = data.frame("pathways" = rownames(inputDF))
+row_labels = merge(row_labels2, row_labels, by = "pathways", all.x = TRUE, all.y = FALSE)
+rownames(row_labels) = row_labels$pathways
+row_labels$pathways = NULL
+dim(row_labels)
+
+
+
+col_fun = colorRamp2(c(-6, 0, 4), c("navy", "white", "red"))
+col_fun(seq(-3, 3))
+
+row_dend = as.dendrogram(hclust(dist(inputDF)))
+row_dend = color_branches(row_dend, k = 2)#, col = c("red","green")) # `color_branches()` returns a dendrogram object
+
+a = (data.frame(colnames(inputDF), rep(c("C", "D"))))
+a$colsplit = ifelse(grepl("donor1", a$colnames.inputDF.), "D1", "D2")
+a$colsplit = ifelse(grepl("donor3", a$colnames.inputDF.), "D3", a$colsplit)
+
+newDF = inputDF
+
+
+colnames(newDF) = gsub(x = colnames(newDF), pattern = "donor", replacement = "D")
+colnames(newDF) = gsub(x = colnames(newDF), pattern = "clust", replacement = "P")
+
+
+b = (data.frame(colnames(newDF), rep(c("C", "D"))))
+b$colsplit = ifelse(grepl("D1", b$colnames.newDF.), "Participant 1", "Participant 2")
+b$colsplit = ifelse(grepl("D3", b$colnames.newDF.), "Participant 3", b$colsplit)
+
+path_cols = c("Metabolism of proteins" = "blue","Immune System" = "brown","Developmental Biology"="#C4B454","Cellular responses to stimuli"="purple" ,"Signal Transduction" = "darkgrey","Disease"= "#50C878" ,"Gene expression (Transcription)"="pink", "Metabolism"="skyblue","Metabolism of RNA" = "darkorange1", "Cell Cycle" = "black", "Programmed Cell Death" = "black", "Extracellular matrix organization" = "black", "Muscle contraction" = "black", "Vesicle-mediated transport" = "black")
+path_cols_subset = (path_cols)[names(path_cols) %in% row_df2$pathway_categories]
+
+Heatmap(newDF, name = "NES", col = col_fun, border_gp = gpar(col = "black"), show_column_dend = FALSE,  row_split = 2, column_split = b$colsplit, column_order = colnames(newDF), row_gap = unit(3, "mm"), column_gap = unit(3, "mm"), row_names_gp = gpar(fontsize = 15), cluster_rows = row_dend, row_title = NULL, column_names_gp = gpar(col = c(participant_pal[1],participant_pal[2],participant_pal[3]), fontsize = 15), top_annotation = HeatmapAnnotation(foo = anno_block(gp = gpar(fill = c(participant_pal[1],participant_pal[2],participant_pal[3])))), left_annotation = rowAnnotation(pathway_cat = row_df2$pathway_categories,col = list(pathway_cat =  path_cols_subset), show_legend = c(TRUE)), show_heatmap_legend = TRUE, row_names_max_width = max_text_width(rownames(newDF), gp = gpar(fontsize = 15)))
+```
+

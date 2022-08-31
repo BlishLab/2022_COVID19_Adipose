@@ -1,0 +1,348 @@
+---
+title: "Figure 5 Code"
+output: html_document
+---
+
+```{r}
+library(Seurat)
+library(reshape)
+library(dplyr)
+library(tidyr)
+library(harmony)
+library(ggplot2)
+library(SummarizedExperiment)
+library(EnhancedVolcano)
+library(data.table)
+library(cowplot)
+library(RColorBrewer)
+library(scales)
+library(stringr)
+library(pheatmap)
+library(fgsea)
+library(RColorBrewer)
+library(reactome.db)
+library(STRINGdb)
+library(topGO)
+library(org.Hs.eg.db)
+library(data.table)
+library(stringr)
+library(EnhancedVolcano)
+library(data.table)
+library(readr)
+library(Hmisc)
+library(plyr)
+library(reshape2)
+library(EnhancedVolcano)
+library(VennDiagram)
+library(grid)
+set.seed(4)
+folderPath = "" #<path to working folder>
+figpath = paste0(folderPath, "figures/Figure5/")
+datpath = paste0(folderPath, "data/")
+sfigpath = paste0(folderPath, "figures/Supps/")
+flipx = theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12)) 
+participant_pal = c("#117733", "#AA4499", "#888888")
+part_list = (c("Participant 1"=participant_pal[1],"Participant 2"=participant_pal[2], "Participant 3" = participant_pal[3]))
+```
+
+## Load Data (may change based on data path)
+```{r}
+srt_harmony = readRDS(paste0(datpath,"harmony_final_srt_nodoublets.rds")) ## path to full QC'd object
+```
+
+## Format Data
+```{R}
+srt_harmony.markers = read.csv(file = paste0(datpath,"all_markers.csv"))
+top2 = srt_harmony.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 2, wt = avg_log2FC)
+
+srt_cluster_cols = c("dodgerblue2",  "deeppink1", "khaki2", "#FF7F00","brown", "skyblue2","palegreen2",  "darkorange4", "#CAB2D6","#FDBF6F" ,  "gray70", "#9400D3", '#E31A1C',  "orchid1",  'green4',  "blue1",  "steelblue4",  "darkturquoise",   "green1",  "black", "yellow4", "gray35","pink2")
+names(srt_cluster_cols) <- levels(srt_harmony$seurat_clusters)
+srt_harmony$clusters_name = paste0("C - ", srt_harmony$seurat_clusters)
+Idents(srt_harmony) = "seurat_clusters"
+cellTypes = c("0 - Preadipocytes","1 - Preadipocytes","2 - IL1B-CCL3-Macrophages","3 - Preadipocytes","4 - Preadipocytes","5 - Preadipocytes","6 - CD4T","7 - Preadipocytes","8 - CD8T and NK", "9 - Preadipocytes","10 - Preadipocytes","11 - Preadipocytes","12 - LYZ-S100A8-Macrophages", "13 - Preadipocytes", "14 - Preadipocytes", "15 - Preadipocytes","16 - Preadipocytes","17 - Granulocytes","18 - MAST", "19 - B","20 - cDC","21 - Endothelial","22 - Preadipocytes")
+names(cellTypes) <- levels(srt_harmony)
+srt_harmony <- RenameIdents(srt_harmony, cellTypes)
+srt_harmony$cellType_v1 = Idents(srt_harmony)
+Idents(srt_harmony) = "seurat_clusters"
+srt_harmony$cellType = paste0("C",srt_harmony$cellType_v1)
+srt_harmony$cellType = factor(srt_harmony$cellType, levels = c("C0 - Preadipocytes","C1 - Preadipocytes","C2 - IL1B-CCL3-Macrophages","C3 - Preadipocytes","C4 - Preadipocytes","C5 - Preadipocytes","C6 - CD4T","C7 - Preadipocytes","C8 - CD8T and NK", "C9 - Preadipocytes","C10 - Preadipocytes","C11 - Preadipocytes","C12 - LYZ-S100A8-Macrophages", "C13 - Preadipocytes", "C14 - Preadipocytes", "C15 - Preadipocytes","C16 - Preadipocytes","C17 - Granulocytes","C18 - MAST", "C19 - B","C20 - cDC","C21 - Endothelial","C22 - Preadipocytes"))
+
+srt_cell_cols = c("dodgerblue2",  "deeppink1", 'green4',  "#FF7F00","brown", "skyblue2","palegreen2",  "darkorange4", "#CAB2D6","#FDBF6F" ,  "gray70", "#9400D3", '#E31A1C',  "orchid1",  "khaki2", "blue1",  "steelblue4",  "darkturquoise",   "green1",  "black", "yellow4", "gray35","pink2")
+names(srt_cell_cols) <- levels(srt_harmony$cellType)
+
+
+srt_harmony.markers = readRDS(file = paste0(datpath,"all_markers_2.rds"))
+srt_harmony.markers_2 = srt_harmony.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 2, wt = avg_log2FC)
+
+celltypes2 =  c("C0 - IL11-PTGS2-Preadipocytes","C1 - KRT18-ALDH1A3-Preadipocytes","C2 - IL1B-CCL3-Macrophages","C3 - MMP3-MMP1-Preadipocytes","C4 - COL3A1-DCN-Preadipocytes","C5 - HIST1H4C-HIST1H1A-Preadipocytes","C6 - CD4T","C7 - PTX3-ADM-Preadipocytes","C8 - CD8T and NK", "C9 - SLPI-KRT8-Preadipocytes","C10 - SNHG15-IL1RL1-Preadipocytes","C11 - UBE2C-TOP2A-Preadipocytes","C12 - LYZ-S100A8-Macrophages", "C13 - HSPA6-HSPA1A-Preadipocytes", "C14 - NEAT1-MTRNR2L8-Preadipocytes", "C15 - CCL20-PTGS2-Preadipocytes","C16 - MGP-CFD-Preadipocytes","C17 - Granulocytes","C18 - MAST", "C19 - B","C20 - cDC","C21 - Endothelial","C22 - SLPI-KRT8-Preadipocytes")
+
+srt_cell_cols2 = c("dodgerblue2",  "deeppink1", 'green4',  "#FF7F00","brown", "skyblue2","palegreen2",  "darkorange4", "#CAB2D6","#FDBF6F" ,  "gray70", "#9400D3", '#E31A1C',  "orchid1",  "khaki2", "blue1",  "steelblue4",  "darkturquoise",   "green1",  "black", "yellow4", "gray35","pink2")
+
+
+Idents(srt_harmony) = "seurat_clusters"
+names(celltypes2) <- levels(srt_harmony)
+srt_harmony <- RenameIdents(srt_harmony, celltypes2)
+srt_harmony$cellType_v2 = Idents(srt_harmony)
+Idents(srt_harmony) = "seurat_clusters"
+srt_harmony$cellType_v2 = factor(srt_harmony$cellType_v2, levels = celltypes2)
+names(srt_cell_cols2) <- levels(srt_harmony$cellType_v2)
+
+### add condition
+srt_harmony$Condition = ifelse(srt_harmony$sampleType_infectionGroup == "SAT_Mock", 'SAT:Mock', 'SAT:SARS-CoV-2')
+srt_harmony$Condition = ifelse(srt_harmony$sampleType_infectionGroup == "VAT_Mock", 'VAT:Mock', srt_harmony$Condition)
+srt_harmony$Condition = ifelse(srt_harmony$sampleType_infectionGroup == "VAT_SARS", 'VAT:SARS-CoV-2', srt_harmony$Condition)
+sampleType_infectionGroup_cols2 = c('SAT:Mock' = "#339CFF", 'SAT:SARS-CoV-2' = "#201A80", 'VAT:Mock' = "#FFA833", 'VAT:SARS-CoV-2' = "#801E1A")
+
+srt_harmony$donor = ifelse(srt_harmony$batch == "batch1", "donor1","donor2")
+srt_harmony$donor = ifelse(srt_harmony$batch == "batch3", "donor3",srt_harmony$donor)
+srt_harmony$donor_inf = paste0(srt_harmony$donor,"-",srt_harmony$sampleType_infectionGroup,"-",srt_harmony$cellType_v2)
+
+# sars metadata
+srt_harmony$sars_containing = ifelse(srt_harmony$SARS_reads > 10, "sars+", "sars-")
+srt_harmony$sars_containing = ifelse(srt_harmony$infection == "Mock", "mock", srt_harmony$sars_containing)
+srt_harmony$log10_SARS_cpm = log10(srt_harmony$SARS_rpm + 1) #
+srt_harmony$log10_SARS_cpm_threshold = ifelse(srt_harmony$sars_containing == "sars+", srt_harmony$log10_SARS_cpm, 0)
+
+
+celltypes4 =  c("C0 - IL11-PTGS2-Preadipocytes","C1 - KRT18-ALDH1A3-Preadipocytes","C2 - IL1B-CCL3-Macrophages","C3 - MMP3-MMP1-Preadipocytes","C4 - COL3A1-DCN-Preadipocytes","C5 - HIST1H4C-HIST1H1A-Preadipocytes","C6 - CD4T","C7 - PTX3-ADM-Preadipocytes","C8 - CD8T and NK", "C9 - SLPI-KRT8-Preadipocytes","C10 - SNHG15-IL1RL1-Preadipocytes","C11 - UBE2C-TOP2A-Preadipocytes","C12 - LYZ-S100A8-Macrophages", "C13 - HSPA6-HSPA1A-Preadipocytes", "C14 - NEAT1-MTRNR2L8-Preadipocytes", "C15 - CCL20-PTGS2-Preadipocytes","C16 - MGP-CFD-Preadipocytes","C17 - Granulocytes","C18 - MAST", "C19 - B","C20 - cDC","C21 - Endothelial","C22 - SLPI-KRT8-Preadipocytes")
+
+celltypes4 = sapply(strsplit(celltypes4, " - "), "[", 1)
+
+srt_cell_cols4 = c("dodgerblue2",  "deeppink1", 'green4',  "#FF7F00","brown", "skyblue2","palegreen2",  "darkorange4", "#CAB2D6","#FDBF6F" ,  "gray70", "#9400D3", '#E31A1C',  "orchid1",  "khaki2", "blue1",  "steelblue4",  "darkturquoise",   "green1",  "black", "yellow4", "gray35","pink2")
+
+names(srt_cell_cols4) <- celltypes4
+```
+
+
+## Load subset
+```{r}
+macrophage_srt = subset(srt_harmony, subset = seurat_clusters %in% c(2,12))
+macrophage_srt$orig.clusters = macrophage_srt$seurat_clusters
+macrophage_srt <- RunPCA(macrophage_srt, verbose = FALSE, npcs = 50)
+macrophage_srt <- RunHarmony(object = macrophage_srt, assay.use = "SCT", reduction = "pca", dims.use = 1:50, group.by.vars = "donor",plot_convergence = TRUE)
+macrophage_srt <- RunUMAP(object = macrophage_srt, assay = "SCT", reduction = "harmony", dims = 1:50)
+macrophage_srt <- FindNeighbors(object = macrophage_srt, assay = "SCT", reduction = "harmony", dims = 1:50)
+macrophage_srt <- FindClusters(macrophage_srt, resolution = .3, verbose = FALSE)
+macrophage_srt@meta.data <- droplevels(macrophage_srt@meta.data)
+```
+
+# Figure 5A
+```{r fig_5A}
+## getting equal representation of each donor + infection status across macrophages (min = 1290)
+macrophage_srt$donor_depot = paste0(macrophage_srt$donor,"_",macrophage_srt$sampleType)
+macrophage_srt$donor_depot_inf = paste0(macrophage_srt$donor_depot,"_",macrophage_srt$infection)
+macrophage_srt$Infection_Status = ifelse(macrophage_srt$infection == "SARS", "Bystander", "Mock")
+macrophage_srt$Infection_Status = ifelse(macrophage_srt$SARS_reads > 10, "SARS-CoV-2+", macrophage_srt$Infection_Status)
+macrophage_srt$donor_depot_inf_st = paste0(macrophage_srt$donor_depot,"_",macrophage_srt$Infection_Status)
+Idents(macrophage_srt) = "donor_depot_inf"
+set.seed = 4
+macrophage_srt_sub = subset(x = macrophage_srt, downsample = 1290)
+
+macrophage_srt_sub$Infection_Status = ifelse(macrophage_srt_sub$infection == "SARS", "Bystander", "Mock")
+macrophage_srt_sub$Infection_Status = ifelse(macrophage_srt_sub$SARS_reads > 10, "SARS-CoV-2+", macrophage_srt_sub$Infection_Status)
+macrophage_srt_sub$Infection_Status = factor(macrophage_srt_sub$Infection_Status, levels = c("Mock","Bystander","SARS-CoV-2+"))
+
+## proportion bars
+macrophage_srt_meta = macrophage_srt_sub@meta.data %>% as.data.table()
+proportion = macrophage_srt_meta[, .(total_cells = .N), by = .(cellType_v1, Infection_Status)]
+proportion2 = macrophage_srt_meta[, .(total_cells2 = .N), by = .(cellType_v1)]
+proportion3 = merge(proportion, proportion2, by = "cellType_v1")
+proportion3$percent = proportion3$total_cells/proportion3$total_cells2
+
+proportion3$cell = "cell"
+proportion3$cellType_v1 = factor(proportion3$cellType_v1, levels = c("12 - LYZ-S100A8-Macrophages", "2 - IL1B-CCL3-Macrophages"))
+proportion3$Infection_Status = factor(proportion3$Infection_Status, levels = c("SARS-CoV-2+", "Bystander", "Mock"))
+proportion3$cellType_v1 = paste0("C", proportion3$cellType_v1)
+fig_5Aa = ggplot(proportion3, aes(x = cell, y = percent, fill = Infection_Status)) + geom_col(position = "fill") + scale_fill_manual(values = c("Bystander" = "purple", "Mock" = "black","SARS-CoV-2+" = "red3")) + facet_wrap(~cellType_v1) + theme_classic() + coord_flip() 
+fig_5Aa = fig_5Aa + theme_void() + theme(legend.position="none")
+# ggsave(fig_5Ab, filename = paste0(folderPath,"figure2/","new_mac_1a",".pdf"),width = 4, height = .25)
+fig_5Aa
+
+## Featureplot
+fig_5Ab = DimPlot(macrophage_srt_sub, group.by = "Infection_Status", cols = c("Bystander" = "purple", "Mock" = "black","SARS-CoV-2+" = "red3"), shuffle = TRUE) + ggtitle("Infection Status") + theme(legend.position = "none", plot.title = element_text(size = 25, face = "bold"))
+fig_5Ab
+
+# ggsave(fig_5Ab, filename = paste0(folderPath,"figure2/","new_mac_1a",".pdf"),width = 9, height = 7)
+```
+
+# Figure 5B
+```{r fig_5B}
+macrophage2_12_MAST = FindMarkers(macrophage_srt, test.use="MAST", latent.vars = 'donor', ident.1 = "C2 - IL1B-CCL3-Macrophages", ident.2 = "C12 - LYZ-S100A8-Macrophages",group.by = 'cellType')
+macrophage2_12_MAST$gene = rownames(macrophage2_12_MAST)
+# write.csv(macrophage2_12_MAST, file = paste0(datpath, "macrophage_2v12.csv")) 
+
+Mock_macrophage_srt = subset(macrophage_srt, subset = infection == "Mock")
+macrophage_response_mock = FindMarkers(Mock_macrophage_srt, test.use="MAST", latent.vars = 'donor', ident.1 = "C2 - IL1B-CCL3-Macrophages", ident.2 = "C12 - LYZ-S100A8-Macrophages",group.by = 'cellType')
+macrophage_response_mock$gene = rownames(macrophage_response_mock)
+macrophage_response_mock$gene_dir = ifelse(macrophage_response_mock$avg_log2FC > 0, paste0(macrophage_response_mock$gene,"_","up"),paste0(macrophage_response_mock$gene,"_","down"))
+# saveRDS(macrophage_response_mock, file = paste0(datpath,"macrophage_response_mock.rds"))
+
+fig_5B = EnhancedVolcano(macrophage_response_mock, x = "avg_log2FC", y = "p_val_adj", lab = rownames(macrophage_response_mock), FCcutoff = 0.4, xlim = c(-4,3.5), labSize = 6, labFace = "italic", boxedLabels = T, drawConnectors = T, ylim = c(0, 400), arrowheads = F, title = NULL, subtitle = NULL, caption = NULL, selectLab = c("LYZ","S100A8","S100A9","HLA-DRB1","HLA-DPB1","HLA-DRA","HLA-DPA1","CD52","FBP1","FABP4","CCL8","MMP1","CCL3","IL1B","CTSL","CXCL8","CCL18","CCL4","OSM","IL10", "TGM2","GSN","PGD", "CD163", "SELENOP", "MARCO", "TREM2", "APOE","LPL"))
+# ggsave(fig_5B, filename = paste0(figpath,"fig_5B.pdf"),width = 10, height = 8)
+fig_5B
+```
+
+# Figure 5C
+```{r fig_5C}
+macrophage_srt$depot = macrophage_srt$sampleType
+SARS_macrophage_srt = subset(macrophage_srt, subset = infection == "SARS")
+VAT_macrophage = subset(macrophage_srt, subset = depot == "VAT")
+SAT_macrophage = subset(macrophage_srt, subset = depot == "SAT")
+
+### get DEGS between sars vs mock macrphages, correcting for donor and depot
+macrophage_response_sars = FindMarkers(SARS_macrophage_srt, test.use="MAST", latent.vars = 'donor', ident.1 = "C2 - IL1B-CCL3-Macrophages", ident.2 = "C12 - LYZ-S100A8-Macrophages",group.by = 'cellType')
+macrophage_response_sars$gene = rownames(macrophage_response_sars)
+macrophage_response_sars$gene_dir = ifelse(macrophage_response_sars$avg_log2FC > 0, paste0(macrophage_response_sars$gene,"_","up"),paste0(macrophage_response_sars$gene,"_","down"))
+
+
+macrophage_response_sat = FindMarkers(SAT_macrophage, test.use="MAST", latent.vars = 'donor', ident.1 = "C2 - IL1B-CCL3-Macrophages", ident.2 = "C12 - LYZ-S100A8-Macrophages",group.by = 'cellType')
+macrophage_response_sat$gene = rownames(macrophage_response_sat)
+macrophage_response_sat$gene_dir = ifelse(macrophage_response_sat$avg_log2FC > 0, paste0(macrophage_response_sat$gene,"_","up"),paste0(macrophage_response_sat$gene,"_","down"))
+
+
+macrophage_response_vat = FindMarkers(VAT_macrophage, test.use="MAST", latent.vars = 'donor', ident.1 = "C2 - IL1B-CCL3-Macrophages", ident.2 = "C12 - LYZ-S100A8-Macrophages",group.by = 'cellType')
+macrophage_response_vat$gene = rownames(macrophage_response_vat)
+macrophage_response_vat$gene_dir = ifelse(macrophage_response_vat$avg_log2FC > 0, paste0(macrophage_response_vat$gene,"_","up"),paste0(macrophage_response_vat$gene,"_","down"))
+
+
+venn.diagram(
+  x = list(macrophage_response_mock[abs(macrophage_response_mock$avg_log2FC) >= .6,]$gene_dir, macrophage_response_sars[abs(macrophage_response_sars$avg_log2FC) >= .6,]$gene_dir, macrophage_response_sat[abs(macrophage_response_sat$avg_log2FC) >= .6,]$gene_dir, macrophage_response_vat[abs(macrophage_response_vat$avg_log2FC) >= .6,]$gene_dir),
+  category.names = c("Mock_2v12" , "SARS-CoV-2_infected_2v12", "SAT_2v12","VAT_2v12"),
+  filename = paste0(figpath,"fig_5C.png"),
+  fill = c("blue", "red", "yellow", "green"),
+  output=TRUE
+)
+```
+
+# Figure 5D
+```{r fig_5D}
+SARS_macrophage_srt = subset(macrophage_srt, subset = infection == "SARS")
+
+SARS_macrophage_srt$Bystander = ifelse(SARS_macrophage_srt$log10_SARS_cpm_threshold > 0, "sars+", "sars-")
+SARS_macrophage_srt$Bystander = ifelse(SARS_macrophage_srt$infection == "Mock", "mock", SARS_macrophage_srt$Bystander)
+
+SARS_macrophage_srt_2 = subset(SARS_macrophage_srt, subset = orig.clusters == 2)
+
+
+macrophage2_bystander = FindMarkers(SARS_macrophage_srt_2, test.use="MAST", latent.vars = 'batch', ident.1 = "sars+", ident.2 = "sars-",group.by = 'Bystander')
+macrophage2_bystander$gene = rownames(macrophage2_bystander)
+
+# write.csv(macrophage2_bystander, file = paste0(datpath,"mac_bystander_degs.csv"))
+# macrophage2_bystander = read.csv(file = paste0(datpath,"mac_bystander_degs.csv"))
+
+objOfInterest = macrophage2_bystander
+rownames(objOfInterest) = objOfInterest$X
+highp = objOfInterest[objOfInterest$avg_log2FC > .8,]
+highp = highp[highp$p_val < 0.001,]
+lowp = objOfInterest[objOfInterest$avg_log2FC < -.8,]
+lowp = lowp[lowp$p_val < 0.001,]
+scoregenes = c(highp$gene, lowp$gene)
+length(scoregenes) 
+
+SARS_macrophage_srt$clust_inf = paste0(SARS_macrophage_srt$orig.clusters, "-",SARS_macrophage_srt$donor)
+
+SARS_macrophage_srt_2$Participant  = SARS_macrophage_srt_2$donor
+SARS_macrophage_srt_2$Participant  = ifelse(SARS_macrophage_srt_2$donor == "donor1", "Participant 1", "Participant 2")
+SARS_macrophage_srt_2$Participant  = ifelse(SARS_macrophage_srt_2$donor == "donor2", "Participant 3", SARS_macrophage_srt_2$Participant )
+
+SARS_macrophage_srt_2$Bystander = ifelse(SARS_macrophage_srt_2$Bystander == "sars+", "SARS-CoV-2+", "Bystander")
+
+SARS_macrophage_srt_2$clust_inf = paste0(SARS_macrophage_srt_2$orig.clusters,"~",SARS_macrophage_srt_2$Bystander,"~",SARS_macrophage_srt_2$Participant)
+macro_genes <- subset(SARS_macrophage_srt_2, features = scoregenes)
+
+Idents(macro_genes) <- "clust_inf"
+macro_genes.averages <- AverageExpression(macro_genes, return.seurat = TRUE)
+
+fig_5D_df <- as.data.frame(as.matrix(macro_genes.averages@assays$SCT@data))
+fig_5D_df = fig_5D_df[as.logical(rowSums(fig_5D_df != 0)), ]
+colOrder = colnames(fig_5D_df)
+colOrder = data.frame(colOrder)
+colnames(colOrder) = "sample_id"
+rownames(colOrder) = colOrder$sample_id
+
+colOrder2 = do.call(rbind, str_split(colOrder$sample_id, '~'))
+rownames(colOrder2) = colOrder$sample_id
+colnames(colOrder2) = c("Cluster","Bystander","Participant")
+colOrder2 = as.data.frame(colOrder2)
+colOrder2$Cluster = paste0("C",colOrder2$Cluster)
+rownames(colOrder2) == colnames(fig_5D_df)
+
+ann_color = list("Participant"=c("Participant 1"=participant_pal[1],"Participant 2"=participant_pal[2], "Participant 3" = participant_pal[3]),
+                 "Bystander"=c("SARS-CoV-2+"="red3", "Bystander"="purple"), "Cluster"=c("C2"="khaki2"))
+
+newnames <- lapply(
+  rownames(fig_5D_df),
+  function(x) bquote(italic(.(x))))
+
+fig_5D = pheatmap(fig_5D_df, scale = "row", border_color=FALSE, annotation_col = colOrder2,show_colnames=FALSE, show_row_dend = FALSE, annotation_colors = ann_color, fontsize_row = 15, treeheight_row = FALSE, legend = F, labels_row = as.expression(newnames))
+
+# ggsave(fig_5D, filename = paste0(figpath,"fig_5D.pdf"),width = 7, height =7)
+fig_5D
+```
+
+# Figure 5E
+```{r fig_5E}
+macrophage2_bystander_all = FindMarkers(SARS_macrophage_srt_2, test.use="MAST", latent.vars = 'donor', ident.1 = "sars+", ident.2 = "sars-",group.by = 'sars_containing', only.pos = FALSE, min.pct = 0, logfc.threshold = 0)
+macrophage2_bystander_all$gene = rownames(macrophage2_bystander_all)
+# write.csv(macrophage2_bystander_all, file = paste0(datpath,"macrophage2_bystander_all.csv"))
+
+macrophage2_bystander_all = read.csv(file = paste0(folderPath_og,"data/DEGs/macrophage2_bystander_all.csv"))
+macrophage2_bystander_all$gene = macrophage2_bystander_all$X
+
+macrophage2_bystander_all = macrophage2_bystander_all[macrophage2_bystander_all$p_val_adj < .1,]
+
+Symbol2entrezIDs <- select(x = org.Hs.eg.db, keys = macrophage2_bystander_all$gene, keytype = "SYMBOL", columns = "ENTREZID") %>% as.data.table
+newDF = macrophage2_bystander_all$gene %>% as.data.frame()
+colnames(newDF) = "SYMBOL"
+setdiff(Symbol2entrezIDs$SYMBOL, newDF$SYMBOL)
+
+Symbol2entrezIDs_unique = Symbol2entrezIDs[!duplicated(Symbol2entrezIDs$SYMBOL), ]
+relevantGenes_key = merge(newDF, Symbol2entrezIDs_unique, by = "SYMBOL", all.x = TRUE, all.y = FALSE)
+test = macrophage2_bystander_all[order(macrophage2_bystander_all$gene), ]
+
+length(setdiff(relevantGenes_key$SYMBOL, test$gene))
+sum(relevantGenes_key$SYMBOL == test$gene)
+length(relevantGenes_key$SYMBOL)
+
+ranks <- test$avg_log2FC
+names(ranks) = relevantGenes_key$ENTREZID
+ranks = sort(ranks, decreasing = TRUE)
+pathways <- reactomePathways(names(ranks))
+
+fgseaMultilevelRes <- fgseaMultilevel(pathways = pathways, 
+                                      stats = ranks,
+                                      minSize=15,
+                                      maxSize=500)
+fgseaMultilevelRes_sig = fgseaMultilevelRes[fgseaMultilevelRes$padj < 0.001,]
+dim(fgseaMultilevelRes_sig)
+
+sig = fgseaMultilevelRes[order(pval)][padj < 0.05]
+
+collapsedPathways <- collapsePathways(fgseaMultilevelRes[order(pval)][padj < 0.05], pathways, ranks)
+
+collapsedPathways[["mainPathways"]]
+
+mainPathways <- fgseaMultilevelRes[pathway %in% collapsedPathways$mainPathways][order(-NES),]
+
+fgseaMultilevelRes_top <- mainPathways[order(NES),]
+fgseaMultilevelRes_top = fgseaMultilevelRes_top$pathway[1:6]
+fgseaMultilevelRes_low <- mainPathways[order(-NES),]
+fgseaMultilevelRes_low = fgseaMultilevelRes_low$pathway[1:12]
+
+toPlotPaths = mainPathways[mainPathways$pathway %in% c(fgseaMultilevelRes_top,fgseaMultilevelRes_low),]
+
+toPlotPaths$newx = str_wrap(toPlotPaths$pathway, width = 25)
+toPlotPaths$color = ifelse(toPlotPaths$NES < 0, "neg", "pos")
+
+fig_5E = ggplot(toPlotPaths, aes(x = reorder(newx, NES), y = NES, fill = color)) + geom_bar(stat="identity") + coord_flip() +  theme_bw()+ theme(legend.position="none") + ylab("Normalized Enrichment Score") + xlab("") + scale_fill_manual(values = c("pos" = "red3","neg"="blue3")) + ggtitle("Enriched REACTOME Pathways") 
+fig_5E
+fig_5E = fig_5E+ theme(tex = element_text(size = 18), axis.text.y = element_text(size = 27),axis.title = element_text(size = 27) )
+# ggsave(fig_5E, filename = paste0(figpath,"fig_5E.pdf"),width = 16, height =14)
+```
+
+
+## end
